@@ -1,0 +1,172 @@
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+
+# standard matrix multiplication
+def matrix_multiplication(matrix_1, matrix_2):
+    n = len(matrix_1)
+    result = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                result[i][j] += matrix_1[i][k] * matrix_2[k][j]
+    return result
+
+# naive matrix multiplication 
+def measure_multiplication(matrix_size):
+    matrix_1 = np.random.randint(1, 10, (matrix_size, matrix_size)).tolist()
+    matrix_2 = np.random.randint(1, 10, (matrix_size, matrix_size)).tolist()
+    
+    start_time = time.time()
+    matrix_multiplication(matrix_1, matrix_2)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+    print(f"Naive multiplication for size {matrix_size}x{matrix_size} took {elapsed_time:.4f} seconds")
+    return elapsed_time
+
+# NumPy matrix multiplication 
+def measure_numpy_time(matrix_size):
+    matrix_1 = np.random.randint(1, 10, (matrix_size, matrix_size))
+    matrix_2 = np.random.randint(1, 10, (matrix_size, matrix_size))
+    
+    start_time = time.time()
+    np.dot(matrix_1, matrix_2)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+    print(f"NumPy multiplication for size {matrix_size}x{matrix_size} took {elapsed_time:.4f} seconds")
+    return elapsed_time
+
+# Matrix addition and subtraction
+def matrix_addition(matrix_1, matrix_2):
+    n = len(matrix_1)
+    return [[matrix_1[i][j] + matrix_2[i][j] for j in range(n)] for i in range(n)]
+
+def matrix_subtraction(matrix_1, matrix_2):
+    n = len(matrix_1)
+    return [[matrix_1[i][j] - matrix_2[i][j] for j in range(n)] for i in range(n)]
+
+# Strassen 
+def strassen(matrix_1, matrix_2):
+    n = len(matrix_1)
+    
+    # base case for recursion
+    if n == 1:
+        return [[matrix_1[0][0] * matrix_2[0][0]]]
+    
+    # assuring that matrix is a power of 2
+    if n & (n - 1) != 0:
+        new_size = 1 << (n - 1).bit_length()
+        matrix_1 = pad_matrix(matrix_1, new_size)
+        matrix_2 = pad_matrix(matrix_2, new_size)
+        n = new_size
+    
+    mid = n // 2
+    A11, A12, A21, A22 = [], [], [], []
+    B11, B12, B21, B22 = [], [], [], []
+    
+    # matrix is split into quarters
+    for i in range(mid):
+        A11.append(matrix_1[i][:mid])
+        A12.append(matrix_1[i][mid:])
+        A21.append(matrix_1[i + mid][:mid])
+        A22.append(matrix_1[i + mid][mid:])
+        
+        B11.append(matrix_2[i][:mid])
+        B12.append(matrix_2[i][mid:])
+        B21.append(matrix_2[i + mid][:mid])
+        B22.append(matrix_2[i + mid][mid:])
+    
+    # Recursive Strassen products
+    P1 = strassen(matrix_addition(A11, A22), matrix_addition(B11, B22))
+    P2 = strassen(matrix_addition(A21, A22), B11)
+    P3 = strassen(A11, matrix_subtraction(B12, B22))
+    P4 = strassen(A22, matrix_subtraction(B21, B11))
+    P5 = strassen(matrix_addition(A11, A12), B22)
+    P6 = strassen(matrix_subtraction(A21, A11), matrix_addition(B11, B12))
+    P7 = strassen(matrix_subtraction(A12, A22), matrix_addition(B21, B22))
+
+    # combine into result matrix
+    C11, C12, C21, C22 = [], [], [], []
+    for i in range(mid):
+        C11.append([P1[i][j] + P4[i][j] - P5[i][j] + P7[i][j] for j in range(mid)])
+        C12.append([P3[i][j] + P5[i][j] for j in range(mid)])
+        C21.append([P2[i][j] + P4[i][j] for j in range(mid)])
+        C22.append([P1[i][j] - P2[i][j] + P3[i][j] + P6[i][j] for j in range(mid)])
+
+    # add all the quadrants into full matrix
+    top = [C11[i] + C12[i] for i in range(mid)]
+    bottom = [C21[i] + C22[i] for i in range(mid)]
+    return top + bottom
+
+def pad_matrix(matrix, size):
+    n = len(matrix)
+    padded_matrix = [[0] * size for _ in range(size)]
+    for i in range(n):
+        for j in range(n):
+            padded_matrix[i][j] = matrix[i][j]
+    return padded_matrix
+
+# strassen matrix multiplication 
+def test_strassen(matrix_size):
+    matrix_1 = np.random.randint(1, 10, (matrix_size, matrix_size)).tolist()
+    matrix_2 = np.random.randint(1, 10, (matrix_size, matrix_size)).tolist()
+    
+    start_time = time.time()
+    strassen(matrix_1, matrix_2)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+    print(f"Strassen multiplication for size {matrix_size}x{matrix_size} took {elapsed_time:.4f} seconds")
+    return elapsed_time
+
+# run the computation until 1000 with steps of 100
+matrix_sizes = list(range(100, 1001, 100))
+naive_times = []
+numpy_times = []
+strassen_times = []
+
+for size in matrix_sizes:
+    # measuring times for each method
+    naive_time = measure_multiplication(size)
+    numpy_time = measure_numpy_time(size)
+    
+    # only calculate Strassen multiplication for sizes up to 512 to save time as the next computation would be at 1024 
+    # and isn't computed anyway
+    if size <= 512:
+        strassen_time = test_strassen(size)
+    else:
+        strassen_time = None  # placeholder for sizes greater than 512
+    
+    # appending times to respective lists
+    naive_times.append(naive_time)
+    numpy_times.append(numpy_time)
+    strassen_times.append(strassen_time)
+    
+    # print the times side by side for each size to have a better overview
+    print(f"Matrix size {size}x{size}: Naive={naive_time:.4f}s, NumPy={numpy_time:.4f}s, Strassen={strassen_time if strassen_time is not None else 'Skipp'}s")
+
+# plotting the results with time annotations
+plt.figure(figsize=(12, 8))
+plt.plot(matrix_sizes, naive_times, label='Naive multiplication', marker='o')
+plt.plot(matrix_sizes, numpy_times, label='NumPy multiplication', marker='o')
+
+# only plot Strassen times for sizes where it was calculated
+strassen_sizes = [size for i, size in enumerate(matrix_sizes) if strassen_times[i] is not None]
+strassen_times_filtered = [time for time in strassen_times if time is not None]
+plt.plot(strassen_sizes, strassen_times_filtered, label='Strassen multiplication', marker='o')
+
+# annotating the points with computation times
+for i, size in enumerate(matrix_sizes):
+    plt.text(size, naive_times[i], f"{naive_times[i]:.2f}s", ha='center', va='bottom', fontsize=8)
+    plt.text(size, numpy_times[i], f"{numpy_times[i]:.2f}s", ha='center', va='bottom', fontsize=8)
+    if strassen_times[i] is not None:
+        plt.text(size, strassen_times[i], f"{strassen_times[i]:.2f}s", ha='center', va='bottom', fontsize=8)
+
+plt.xlabel('Length of matrix (n x n)')
+plt.ylabel('Zeit (Seconds)')
+plt.legend()
+plt.title('Comparison of runtime of Naive, NumPy and Strassen matrixmultiplication')
+plt.grid(True)
+plt.show()
